@@ -1,0 +1,18 @@
+{
+  "name": "fat7",
+  "version": "1.0.0",
+  "private": true,
+  "description": "فتح - Fat7",
+  "scripts": {
+    "prepare-web": "node -e \"const fs=require('fs');fs.rmSync('www',{recursive:true,force:true});fs.mkdirSync('www');fs.copyFileSync('Fat7.html','www/index.html')\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/browser": "^6.0.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

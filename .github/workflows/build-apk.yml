@@ -1,0 +1,61 @@
+name: Build Fat7 APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare web files (Fat7.html -> www/index.html)
+        run: npm run prepare-web
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Apply icon, splash screen and permissions
+        run: node scripts/apply-android-branding.mjs
+
+      - name: Sync web files into the app
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Fat7.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fat7-APK
+          path: Fat7.apk
+
+      - name: Publish to Releases (easy download from phone)
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fat7 (latest build)
+          files: Fat7.apk

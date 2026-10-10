@@ -1,0 +1,9 @@
+{
+  "appId": "com.muhannad.fat7",
+  "appName": "Fat7",
+  "webDir": "www",
+  "backgroundColor": "#07131f",
+  "server": {
+    "androidScheme": "https"
+  }
+}
