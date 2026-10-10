@@ -11,7 +11,7 @@ on:
       - ".github/workflows/build-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -43,3 +43,14 @@ jobs:
           name: MIRQA-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk MIRQA.apk
+
+      - name: Publish to Releases (easy download from phone)
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mirqa-latest
+          name: MIRQA (latest build)
+          files: MIRQA.apk
