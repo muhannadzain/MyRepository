@@ -1,0 +1,97 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master, alertme ]
+  workflow_dispatch:
+
+env:
+  # غيّر الرقم ده لو عايز تعيد بناء TDLib من الأول (تحديث لأحدث نسخة)
+  TDLIB_CACHE_VERSION: v1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore prebuilt TDLib
+        id: tdcache
+        uses: actions/cache/restore@v4
+        with:
+          path: tdlib-prepared
+          key: tdlib-${{ env.TDLIB_CACHE_VERSION }}
+
+      - name: Build TDLib from the official source (first run only, ~1 hour)
+        if: steps.tdcache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/tdlib/td.git "$RUNNER_TEMP/td"
+          cd "$RUNNER_TEMP/td/example/android"
+          OUT="$RUNNER_TEMP/tdlib-out"
+          DOCKER_BUILDKIT=1 docker build --output "$OUT" .
+          echo "--- build output ---"
+          ls -R "$OUT" | head -n 60 || true
+
+          if [ -f "$OUT/tdlib.zip" ]; then
+            mkdir -p "$OUT/unz"
+            unzip -q "$OUT/tdlib.zip" -d "$OUT/unz"
+          fi
+
+          TDAPI=$(find "$OUT" -name TdApi.java -not -path '*debug*' -not -path '*javadoc*' | head -n 1)
+          if [ -z "$TDAPI" ]; then
+            echo "TdApi.java not found in TDLib output"
+            exit 1
+          fi
+          JAVA_DIR=$(dirname "$TDAPI")
+          DEST="$GITHUB_WORKSPACE/tdlib-prepared"
+          mkdir -p "$DEST/java"
+          cp "$JAVA_DIR"/*.java "$DEST/java/"
+
+          find "$OUT" -name libtdjni.so -not -path '*debug*' | while read -r so; do
+            abi=$(basename "$(dirname "$so")")
+            mkdir -p "$DEST/jniLibs/$abi"
+            cp "$so" "$DEST/jniLibs/$abi/"
+          done
+          if [ ! -d "$DEST/jniLibs" ]; then
+            echo "libtdjni.so not found in TDLib output"
+            exit 1
+          fi
+          echo "--- prepared files ---"
+          find "$DEST" -type f | head -n 30
+
+      - name: Save TDLib cache
+        if: steps.tdcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: tdlib-prepared
+          key: tdlib-${{ env.TDLIB_CACHE_VERSION }}
+
+      - name: Install TDLib into the app
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/java/org/drinkless/tdlib app/src/main/jniLibs
+          cp tdlib-prepared/java/*.java app/src/main/java/org/drinkless/tdlib/
+          cp -r tdlib-prepared/jniLibs/* app/src/main/jniLibs/
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlertMe-apk
+          path: app/build/outputs/apk/debug/app-debug.apk

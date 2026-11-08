@@ -1,0 +1,11 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+
+# بيتحطوا تلقائيًا من GitHub Actions (TDLib الرسمي)
+app/src/main/jniLibs/
+app/src/main/java/org/drinkless/
+tdlib-prepared/
