@@ -13,6 +13,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -95,3 +97,17 @@ jobs:
         with:
           name: AlertMe-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # نسخة تانية من الـ APK في فرع apk (كوميت واحد بيتبدل كل مرة)
+      # تحميل مباشر: https://github.com/<user>/<repo>/raw/apk/AlertMe.apk
+      - name: Publish APK to the apk branch
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/pub"
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/pub/AlertMe.apk"
+          cd "$RUNNER_TEMP/pub"
+          git init -q -b apk
+          git add AlertMe.apk
+          git -c user.name=github-actions -c user.email=actions@users.noreply.github.com commit -q -m "AlertMe APK from ${GITHUB_SHA::7}"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push -f origin apk
