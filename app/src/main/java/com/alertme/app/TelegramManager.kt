@@ -29,6 +29,15 @@ object TelegramManager {
     @Volatile
     var pendingPhone: String = ""
 
+    /** حالة الاتصال بسيرفرات تلجرام وآخر وقت وصل فيه تحديث (للتشخيص). */
+    @Volatile
+    var connection: String = ""
+        private set
+
+    @Volatile
+    var lastUpdateMs: Long = 0L
+        private set
+
     @Volatile
     var onChange: (() -> Unit)? = null
 
@@ -112,9 +121,21 @@ object TelegramManager {
 
     private fun handle(o: Any?) {
         try {
+            lastUpdateMs = System.currentTimeMillis()
             when (o) {
                 is TdApi.UpdateAuthorizationState -> onAuth(o.authorizationState)
                 is TdApi.UpdateNewMessage -> onMessage(o.message)
+                is TdApi.UpdateConnectionState -> {
+                    connection = when (o.state) {
+                        is TdApi.ConnectionStateReady -> "متصل بالسيرفر"
+                        is TdApi.ConnectionStateWaitingForNetwork -> "بانتظار الشبكة"
+                        is TdApi.ConnectionStateConnecting -> "جاري الاتصال بالسيرفر"
+                        is TdApi.ConnectionStateConnectingToProxy -> "جاري الاتصال بالسيرفر"
+                        is TdApi.ConnectionStateUpdating -> "جاري تحديث الرسائل"
+                        else -> ""
+                    }
+                    notifyChange()
+                }
             }
         } catch (e: Throwable) {
             // أي خطأ في رسالة واحدة ما يوقفش الباقي

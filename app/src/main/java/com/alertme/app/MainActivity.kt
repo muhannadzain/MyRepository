@@ -28,7 +28,11 @@ import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.app.NotificationManager
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -144,6 +148,7 @@ class MainActivity : Activity() {
             )
         })
         col.addView(btn("3) إيقاف توفير البطارية للتطبيق") { requestBattery() })
+        col.addView(btn("4) الإشعارات وملء الشاشة") { openNotifSettings() })
 
         col.addView(section("تلجرام (اتصال مباشر — من غير إشعارات)"))
         tgStatus = label("", 15f)
@@ -200,7 +205,9 @@ class MainActivity : Activity() {
         statusView.text = listOf(
             (if (isListenerEnabled()) ok else no) + "قراءة الإشعارات (لواتساب)",
             (if (Settings.canDrawOverlays(this)) ok else no) + "العرض فوق التطبيقات",
-            (if (isIgnoringBattery()) ok else no) + "استثناء من توفير البطارية"
+            (if (isIgnoringBattery()) ok else no) + "استثناء من توفير البطارية",
+            (if (notificationsOk()) ok else no) + "الإشعارات",
+            (if (fullScreenOk()) ok else no) + "إشعارات ملء الشاشة"
         ).joinToString("\n")
 
         val bmp = ImageUtil.load(Prefs.imageFile(this), 600)
@@ -375,7 +382,7 @@ class MainActivity : Activity() {
     private fun refreshTelegram() {
         val st = TelegramManager.state
         val base = when (st) {
-            TelegramManager.State.READY -> "✅ متصل — بيراقب رسايلك"
+            TelegramManager.State.READY -> readyText()
             TelegramManager.State.OFF ->
                 if (Prefs.tgEnabled(this)) "⏳ جاري الاتصال..." else "❌ غير متصل"
             TelegramManager.State.CONNECTING -> "⏳ جاري الاتصال..."
@@ -538,6 +545,53 @@ class MainActivity : Activity() {
             ?: return false
         return flat.split(":").any {
             ComponentName.unflattenFromString(it)?.packageName == packageName
+        }
+    }
+
+    private fun readyText(): String {
+        val sb = StringBuilder("✅ مسجّل الدخول — بيراقب رسايلك")
+        val c = TelegramManager.connection
+        if (c.isNotEmpty()) sb.append("\nالاتصال: ").append(c)
+        val t = TelegramManager.lastUpdateMs
+        if (t > 0L) {
+            val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+            sb.append("\nآخر نشاط من تلجرام: ").append(fmt.format(Date(t)))
+        }
+        return sb.toString()
+    }
+
+    private fun notificationsOk(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 33) {
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else {
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).areNotificationsEnabled()
+        }
+    }
+
+    private fun fullScreenOk(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 34) {
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).canUseFullScreenIntent()
+        } else {
+            true
+        }
+    }
+
+    private fun openNotifSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= 34 && !fullScreenOk()) {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            } else {
+                val i = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                i.putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                startActivity(i)
+            }
+        } catch (e: Exception) {
+            toast("تعذر فتح الإعدادات")
         }
     }
 
