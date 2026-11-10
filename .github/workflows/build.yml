@@ -1,0 +1,76 @@
+name: Build CodePost APK
+
+on:
+  push:
+    branches: [codepost]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-apk
+        run: cargo install cargo-apk --locked
+
+      - name: Test core logic (host)
+        id: test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo test --lib 2>&1 | tee test.log
+
+      - name: Ensure Android platform + NDK env
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          [ -d "$ANDROID_HOME/platforms/android-34" ] || "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" || true
+          if [ -n "$ANDROID_NDK_LATEST_HOME" ]; then
+            echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+            echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create throwaway signing key
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/codepost.jks" -alias codepost \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android1 -keypass android1 -dname "CN=CodePost, O=Dev, C=EG"
+          echo "CARGO_APK_RELEASE_KEYSTORE=$RUNNER_TEMP/codepost.jks" >> "$GITHUB_ENV"
+          echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android1" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo apk build --release 2>&1 | tee build.log
+
+      - name: Publish APK + logs to branch apk-codepost
+        if: always()
+        run: |
+          mkdir out
+          echo "test=${{ steps.test.outcome }} build=${{ steps.build.outcome }} sha=${{ github.sha }} run=${{ github.run_id }}" > out/status.txt
+          tail -n 400 test.log  > out/test.log  2>/dev/null || true
+          tail -n 600 build.log > out/build.log 2>/dev/null || true
+          APK=$(find target -name '*.apk' 2>/dev/null | head -1)
+          if [ -n "$APK" ]; then cp "$APK" out/codepost.apk; echo "apk=$APK size=$(stat -c %s "$APK")" >> out/status.txt; fi
+          cd out
+          git init -q
+          git checkout -q -b apk-codepost
+          git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -q -m "build ${{ github.run_id }}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" apk-codepost
+
+      - name: Fail job if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
