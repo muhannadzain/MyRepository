@@ -1,0 +1,18 @@
+[1m[92m    Updating[0m crates.io index
+[1m[92m     Locking[0m 305 packages to highest compatible versions
+[1m[92m      Adding[0m android_logger v0.14.1 [1m[33m(available: v0.15.1)[0m
+[1m[92m      Adding[0m eframe v0.31.1 [1m[33m(available: v0.37.0)[0m
+[1m[92m   Compiling[0m codepost v0.1.0 (/home/runner/work/MyRepository/MyRepository)
+[1m[92m    Finished[0m `test` profile [unoptimized + debuginfo] target(s) in 8.83s
+[1m[92m     Running[0m unittests src/lib.rs (target/debug/deps/codepost-89a1bd29eea51072)
+
+running 6 tests
+test core::tests::meter_reads_and_increments ... ok
+test core::tests::poll_click_votes ... ok
+test core::tests::sandbox_blocks_abuse ... ok
+test core::tests::poll_template_runs ... ok
+test core::tests::store_rules ... ok
+test core::tests::syntax_error_is_reported_not_panicking ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

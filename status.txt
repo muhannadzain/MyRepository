@@ -1,0 +1,2 @@
+test=success build=success sha=22f702fb68402e36f212786e4fea1c93a03a15eb run=42763507265
+apk=target/release/apk/CodePost.apk size=13017663
